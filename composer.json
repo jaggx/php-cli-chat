@@ -1,0 +1,61 @@
+{
+  "name": "jaggx/php-cli-chat",
+  "description": "A simple terminal chat: an async TCP server and a TUI client, built on AMPHP and Symfony TUI",
+  "type": "project",
+  "keywords": [
+    "chat",
+    "cli",
+    "tui",
+    "terminal",
+    "async",
+    "amphp",
+    "socket",
+    "fibers"
+  ],
+  "license": "MIT",
+  "require": {
+    "php": ">=8.4.1",
+    "ext-iconv": "*",
+    "ext-pcntl": "*",
+    "amphp/amp": "^3.1",
+    "amphp/byte-stream": "^2.1",
+    "amphp/socket": "^2.4",
+    "symfony/tui": "~8.1.0"
+  },
+  "require-dev": {
+    "pestphp/pest": "^5.0",
+    "phpstan/phpstan": "^2.2"
+  },
+  "autoload": {
+    "psr-4": {
+      "PhpCliChat\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Tests\\": "tests/"
+    }
+  },
+  "bin": [
+    "bin/server.php",
+    "bin/client.php"
+  ],
+  "scripts": {
+    "server": "php bin/server.php",
+    "client": "php bin/client.php",
+    "stan": "phpstan analyse src bin --level=max",
+    "test": "pest"
+  },
+  "scripts-descriptions": {
+    "server": "Start the chat server (defaults to 127.0.0.1:1337; pass --host=/--port= after --)",
+    "client": "Connect a TUI client (defaults to 127.0.0.1:1337; pass --host=/--port= after --)",
+    "stan": "Run static analysis over src/ and bin/",
+    "test": "Run the Pest test suite"
+  },
+  "config": {
+    "sort-packages": true,
+    "allow-plugins": {
+      "pestphp/pest-plugin": true
+    }
+  }
+}
