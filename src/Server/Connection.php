@@ -2,6 +2,7 @@
 
 namespace PhpCliChat\Server;
 
+use Amp\ByteStream\WritableStream;
 use Amp\Socket;
 use PhpCliChat\Protocol\Message;
 use PhpCliChat\Protocol\MessageChannel;
@@ -15,9 +16,17 @@ readonly class Connection
         private MessageChannel $channel,
     ) {}
 
-    public static function accept(Socket\Socket $socket, int $id): self
+    /**
+     * @param Socket\Socket $socket
+     * @param int $id
+     * @param ?WritableStream $debug
+     * @return Connection
+     */
+    public static function accept(Socket\Socket $socket, int $id, ?WritableStream $debug = null): self
     {
-        return new self($id, MessageChannel::forServer(new LineStream($socket)));
+        $log = null === $debug ? null : new ConnectionLog($debug, $id);
+
+        return new self($id, MessageChannel::forServer(new LineStream($socket), $log));
     }
 
     public function getRemoteAddress(): Socket\SocketAddress

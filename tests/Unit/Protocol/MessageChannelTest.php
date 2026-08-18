@@ -8,6 +8,7 @@ use PhpCliChat\Protocol\Transport\LineStream;
 use PhpCliChat\Protocol\Unreadable;
 use Tests\Support\LineCollector;
 use Tests\Support\MessageCollector;
+use Tests\Support\WireLogCollector;
 
 use function Amp\delay;
 
@@ -99,6 +100,47 @@ it('ends its iteration when the peer hangs up', function () {
 
     expect($received->closed)->toBeTrue();
     expect($received->messages)->toBeEmpty();   // a clean hangup is not a malformed line
+});
+
+it('taps the line it sends', function () {
+    [$local, $remote] = Socket\createSocketPair();
+    $log = new WireLogCollector();
+
+    MessageChannel::forClient(new LineStream($local), $log)->send(new Chat('hello'));
+    delay(0.05);
+
+    expect($log->sentLines)->toBe(['{"type":"chat","text":"hello"}']);
+    expect($log->receivedLines)->toBeEmpty();
+});
+
+it('taps a received line as it arrived, decodable or not', function () {
+    // The tap is what a debug mode prints, so it has to show the bytes rather
+    // than a re-encoding of what the decoder made of them: a forged field or a
+    // line no decoder can read is exactly what someone is looking for.
+    [$local, $remote] = Socket\createSocketPair();
+    $log = new WireLogCollector();
+    new MessageCollector(MessageChannel::forServer(new LineStream($local), $log));
+
+    $remote->write('{"type":"chat","from":9,"text":"hello"}' . "\n");
+    $remote->write("garbage\n");
+    delay(0.05);
+
+    expect($log->receivedLines)->toBe([
+        '{"type":"chat","from":9,"text":"hello"}',
+        'garbage',
+    ]);
+    expect($log->sentLines)->toBeEmpty();
+});
+
+it('does not tap a blank line', function () {
+    [$local, $remote] = Socket\createSocketPair();
+    $log = new WireLogCollector();
+    new MessageCollector(MessageChannel::forServer(new LineStream($local), $log));
+
+    $remote->write("\n");
+    delay(0.05);
+
+    expect($log->receivedLines)->toBeEmpty();
 });
 
 it('reports the address of the peer', function () {

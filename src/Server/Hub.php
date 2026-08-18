@@ -2,6 +2,7 @@
 
 namespace PhpCliChat\Server;
 
+use Amp\ByteStream\WritableStream;
 use Amp\Socket;
 
 class Hub
@@ -12,12 +13,16 @@ class Hub
     private array $connections = [];
     private int $nextID = 0;
 
-    public function add(Socket\Socket $socket): Connection
+    /**
+     * @param ?WritableStream $debug passed on to the connection this builds,
+     *                               which is what owns the id it logs under
+     */
+    public function add(Socket\Socket $socket, ?WritableStream $debug = null): Connection
     {
         $id = $this->nextID;
         $this->nextID = $id + 1;
 
-        return $this->connections[$id] = Connection::accept($socket, $id);
+        return $this->connections[$id] = Connection::accept($socket, $id, $debug);
     }
 
     public function remove(int $id): void

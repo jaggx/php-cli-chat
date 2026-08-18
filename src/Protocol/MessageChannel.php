@@ -13,16 +13,17 @@ readonly class MessageChannel
     public function __construct(
         private LineStream $stream,
         private Decoder    $decoder,
+        private ?WireLog   $log = null,
     ) {}
 
-    public static function forServer(LineStream $stream): self
+    public static function forServer(LineStream $stream, ?WireLog $log = null): self
     {
-        return new self($stream, Decoder::forServer());
+        return new self($stream, Decoder::forServer(), $log);
     }
 
-    public static function forClient(LineStream $stream): self
+    public static function forClient(LineStream $stream, ?WireLog $log = null): self
     {
-        return new self($stream, Decoder::forClient());
+        return new self($stream, Decoder::forClient(), $log);
     }
 
     public function getRemoteAddress(): Socket\SocketAddress
@@ -32,7 +33,11 @@ readonly class MessageChannel
 
     public function send(Message $message): void
     {
-        $this->stream->send(Encoder::encode($message));
+        $line = Encoder::encode($message);
+
+        $this->log?->sent($line);
+
+        $this->stream->send($line);
     }
 
     /**
@@ -44,6 +49,8 @@ readonly class MessageChannel
             if ('' === $line) {
                 continue; // a framing artifact, not a protocol error
             }
+
+            $this->log?->received($line);
 
             try {
                 yield $this->decoder->decode($line);

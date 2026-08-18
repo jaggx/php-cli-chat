@@ -1,11 +1,14 @@
 <?php
 
+use Amp\ByteStream\WritableBuffer;
+use Amp\ByteStream\WritableStream;
 use Amp\Socket;
 use PhpCliChat\Protocol\Codec\Decoder;
 use PhpCliChat\Protocol\Codec\Encoder;
 use PhpCliChat\Protocol\Message;
 use PhpCliChat\Server\ChatServer;
 use PhpCliChat\Server\Hub;
+use PhpCliChat\Server\ServerOptions;
 use Revolt\EventLoop;
 use Tests\Support\LineCollector;
 use Tests\TestCase;
@@ -42,16 +45,42 @@ pest()->afterEach(function () {
 /**
  * Binds an OS-assigned port and accepts in the background.
  *
+ * Whatever the server prints is buffered rather than printed, so a test run
+ * stays readable; pass a buffer of your own to read it back.
+ *
  * @return array{ChatServer, string}
  */
-function startChatServer(?Hub $hub = null): array
-{
-    $server = new ChatServer($hub ?? new Hub());
-    $address = (string) $server->listen('127.0.0.1:0');
+function startChatServer(
+    Hub $hub = new Hub(),
+    bool $debug = false,
+    WritableStream $log = new WritableBuffer(),
+): array {
+    $server = new ChatServer();
+    $server->setOptions(new ServerOptions('127.0.0.1', '0', $debug));
+    $server->setHub($hub);
+    $server->setLog($log);
 
-    async(fn () => $server->serve($address))->ignore();
+    $address = (string) $server->listen();
+
+    async(fn () => $server->serve())->ignore();
 
     return [$server, $address];
+}
+
+/**
+ * The lines a server logged about its traffic, with the operational noise
+ * around them ("Listening on ...", "client 0 connected ...") left out.
+ *
+ * @return list<string>
+ */
+function loggedTraffic(WritableBuffer $log): array
+{
+    $log->end();
+
+    return array_values(array_filter(
+        explode(PHP_EOL, $log->buffer()),
+        static fn (string $line) => str_contains($line, ' -> '),
+    ));
 }
 
 /**

@@ -2,13 +2,10 @@
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
-use PhpCliChat\Cli\AddressOptions;
+use PhpCliChat\Cli\OptionsFactory;
 use PhpCliChat\Client\ChatClient;
 
-$address = AddressOptions::fromArgv(
-    $argv ?? [],
-    basename(__FILE__),
-    'Connect a TUI client to a chat server.',
-);
+$client = new ChatClient();
+$client->setOptions(OptionsFactory::client($argv ?? []));
 
-new ChatClient()->connect($address);
+$client->connect();

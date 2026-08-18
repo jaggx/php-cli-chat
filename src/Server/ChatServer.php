@@ -2,6 +2,7 @@
 
 namespace PhpCliChat\Server;
 
+use Amp\ByteStream\WritableStream;
 use Amp\Socket;
 use PhpCliChat\Protocol\Message\Broadcast;
 use PhpCliChat\Protocol\Message\Chat;
@@ -15,25 +16,49 @@ class ChatServer
 {
     private ?Socket\ServerSocket $server = null;
 
-    public function __construct(
-        private readonly Hub $hub = new Hub(),
-    ) {}
+    private ServerOptions $options;
 
-    public function listen(string $address): Socket\SocketAddress
+    private Hub $hub;
+
+    private WritableStream $log;
+
+    public function __construct()
     {
-        return $this->bind($address)->getAddress();
+        $this->options = new ServerOptions();
+        $this->hub = new Hub();
+        $this->log = getStdout();
     }
 
-    public function serve(string $address): void
+    public function setOptions(ServerOptions $options): void
     {
-        $server = $this->bind($address);
+        $this->options = $options;
+    }
 
-        echo "Listening on " . $server->getAddress() . PHP_EOL;
+    public function setHub(Hub $hub): void
+    {
+        $this->hub = $hub;
+    }
+
+    public function setLog(WritableStream $log): void
+    {
+        $this->log = $log;
+    }
+
+    public function listen(): Socket\SocketAddress
+    {
+        return $this->bind()->getAddress();
+    }
+
+    public function serve(): void
+    {
+        $server = $this->bind();
+
+        $this->log->write("Listening on {$server->getAddress()}" . PHP_EOL);
 
         while ($client = $server->accept()) {
-            $connection = $this->hub->add($client);
+            $connection = $this->hub->add($client, $this->options->debug ? $this->log : null);
 
-            getStdout()->write("client $connection->id connected from {$connection->getRemoteAddress()}" . PHP_EOL);
+            $this->log->write("client $connection->id connected from {$connection->getRemoteAddress()}" . PHP_EOL);
 
             async(function () use ($connection) {
                 try {
@@ -58,9 +83,9 @@ class ChatServer
         }
     }
 
-    private function bind(string $address): Socket\ServerSocket
+    private function bind(): Socket\ServerSocket
     {
-        return $this->server ??= Socket\listen($address);
+        return $this->server ??= Socket\listen("{$this->options->host}:{$this->options->port}");
     }
 
     private function handleConnection(Connection $connection): void

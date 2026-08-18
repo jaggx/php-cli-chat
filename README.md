@@ -32,6 +32,7 @@ Start the server in one terminal:
 php bin/server.php                 # listens on 127.0.0.1:1337
 php bin/server.php --host=192.168.1.46
 php bin/server.php --port=9000
+php bin/server.php --debug         # also print every line exchanged with clients
 ```
 
 Connect a client in another (repeat for as many clients as you like):

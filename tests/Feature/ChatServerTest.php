@@ -1,5 +1,6 @@
 <?php
 
+use Amp\ByteStream\WritableBuffer;
 use Amp\Socket;
 use PhpCliChat\Protocol\Message\Broadcast;
 use PhpCliChat\Protocol\Message\Chat;
@@ -142,6 +143,63 @@ it('keeps serving the survivors after one client leaves', function () {
 
     expect(decodeFromServer($carolLines->lines))->toEqual([new Broadcast(0, 'still here')]);
     expect($bobLines->lines)->toBeEmpty();
+
+    $server->stop();
+});
+
+it('logs both directions of the traffic in debug mode', function () {
+    $log = new WritableBuffer();
+    [$server, $address] = startChatServer(debug: true, log: $log);
+
+    [$alice] = connectClient($address);
+    delay(0.05);
+    connectClient($address);
+    delay(0.05);
+
+    $alice->write(wireLine(new Chat('hello everyone')));
+    delay(0.05);
+
+    $server->stop();
+    delay(0.05);
+
+    expect(loggedTraffic($log))->toBe([
+        'client 0 -> server {"type":"chat","text":"hello everyone"}',
+        'server -> client 1 {"type":"chat","from":0,"text":"hello everyone"}',
+    ]);
+});
+
+it('logs no traffic unless it is in debug mode', function () {
+    $log = new WritableBuffer();
+    [$server, $address] = startChatServer(log: $log);
+
+    [$alice] = connectClient($address);
+    delay(0.05);
+    connectClient($address);
+    delay(0.05);
+
+    $alice->write(wireLine(new Chat('hello everyone')));
+    delay(0.05);
+
+    $server->stop();
+    delay(0.05);
+
+    expect(loggedTraffic($log))->toBeEmpty();
+});
+
+it('still relays what it logs', function () {
+    // The tap watches the wire, it does not stand in it: turning debug on must
+    // not consume, delay past its peers, or rewrite a single message.
+    [$server, $address] = startChatServer(debug: true);
+
+    [, $aliceLines] = connectClient($address);
+    delay(0.05);
+    [$bob] = connectClient($address);
+    delay(0.05);
+
+    $bob->write(wireLine(new Chat('hello')));
+    delay(0.05);
+
+    expect(decodeFromServer($aliceLines->lines))->toEqual([new Broadcast(1, 'hello')]);
 
     $server->stop();
 });

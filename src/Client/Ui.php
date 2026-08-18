@@ -2,6 +2,7 @@
 
 namespace PhpCliChat\Client;
 
+use PhpCliChat\Cli\Sanitizer;
 use Symfony\Component\Tui\Style\Border;
 use Symfony\Component\Tui\Style\BorderPattern;
 use Symfony\Component\Tui\Style\Padding;

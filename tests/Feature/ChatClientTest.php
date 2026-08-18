@@ -2,6 +2,7 @@
 
 use Amp\Socket;
 use PhpCliChat\Client\ChatClient;
+use PhpCliChat\Client\ClientOptions;
 use PhpCliChat\Protocol\Message\Broadcast;
 use PhpCliChat\Protocol\Message\Chat;
 use Tests\Support\FakeUi;
@@ -17,10 +18,14 @@ function connectFakeClient(): array
 {
     $listener = Socket\listen('127.0.0.1:0');
 
-    $ui = new FakeUi();
-    $client = new ChatClient($ui);
+    $address = $listener->getAddress();
 
-    async(fn () => $client->connect((string) $listener->getAddress()))->ignore();
+    $ui = new FakeUi();
+    $client = new ChatClient();
+    $client->setOptions(new ClientOptions($address->getAddress(), (string) $address->getPort()));
+    $client->setUi($ui);
+
+    async(fn () => $client->connect())->ignore();
 
     $peer = $listener->accept();
 

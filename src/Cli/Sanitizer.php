@@ -1,6 +1,6 @@
 <?php
 
-namespace PhpCliChat\Client;
+namespace PhpCliChat\Cli;
 
 class Sanitizer
 {

@@ -2,20 +2,15 @@
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
-use PhpCliChat\Cli\AddressOptions;
+use PhpCliChat\Cli\OptionsFactory;
 use PhpCliChat\Server\ChatServer;
 
 use function Amp\async;
 use function Amp\ByteStream\getStdout;
 use function Amp\trapSignal;
 
-$address = AddressOptions::fromArgv(
-    $argv ?? [],
-    basename(__FILE__),
-    'Serve terminal chat over TCP.',
-);
-
 $server = new ChatServer();
+$server->setOptions(OptionsFactory::server($argv ?? []));
 
 async(function () use ($server) {
     trapSignal([SIGINT, SIGTERM], reference: false);
@@ -25,4 +20,4 @@ async(function () use ($server) {
     $server->stop();
 })->ignore();
 
-$server->serve($address);
+$server->serve();

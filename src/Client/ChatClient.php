@@ -9,14 +9,32 @@ use PhpCliChat\Protocol\Transport\LineStream;
 
 use function Amp\async;
 
-readonly class ChatClient
+class ChatClient
 {
-    public function __construct(
-        private Ui $ui = new Ui(),
-    ) {}
+    private ClientOptions $options;
 
-    public function connect(string $address): void
+    private Ui $ui;
+
+    public function __construct()
     {
+        $this->options = new ClientOptions();
+        $this->ui = new Ui();
+    }
+
+    public function setOptions(ClientOptions $options): void
+    {
+        $this->options = $options;
+    }
+
+    public function setUi(Ui $ui): void
+    {
+        $this->ui = $ui;
+    }
+
+    public function connect(): void
+    {
+        $address = "{$this->options->host}:{$this->options->port}";
+
         $channel = MessageChannel::forClient(LineStream::connect($address));
 
         # Client -> Server

@@ -1,6 +1,6 @@
 <?php
 
-use PhpCliChat\Client\Sanitizer;
+use PhpCliChat\Cli\Sanitizer;
 
 it('makes untrusted text safe to render', function (string $input, string $expected) {
     expect(Sanitizer::sanitize($input))->toBe($expected);
