@@ -2,6 +2,8 @@
 
 use Amp\Socket;
 use PhpCliChat\Client\ChatClient;
+use PhpCliChat\Protocol\Message\Broadcast;
+use PhpCliChat\Protocol\Message\Chat;
 use Tests\Support\FakeUi;
 use Tests\Support\LineCollector;
 
@@ -9,8 +11,6 @@ use function Amp\async;
 use function Amp\delay;
 
 /**
- * Stands in for the server: hands back the fake ui and the accepted peer.
- *
  * @return array{FakeUi, Socket\Socket, Socket\ServerSocket}
  */
 function connectFakeClient(): array
@@ -42,12 +42,32 @@ it('announces the connection', function () {
 });
 
 it('appends messages coming from the server', function () {
+    // Rendering stays a client concern: the sender arrives as data and the
+    // client is what turns it into a line of text.
     [$ui, $peer, $listener] = connectFakeClient();
 
-    $peer->write("client 7: hi there\n");
+    $peer->write(wireLine(new Broadcast(7, 'hi there')));
     delay(0.05);
 
     expect($ui->appended)->toContain('client 7: hi there');
+
+    $ui->stop();
+    $listener->close();
+});
+
+it('ignores a line it cannot decode', function () {
+    // Unreadable falls through the instanceof and is dropped: a version
+    // mismatch degrades into a quiet session, not a crash.
+    [$ui, $peer, $listener] = connectFakeClient();
+    delay(0.05);
+
+    $before = count($ui->appended);
+
+    $peer->write("garbage\n");
+    delay(0.05);
+
+    expect($ui->appended)->toHaveCount($before);
+    expect($ui->stopped)->toBeFalse();
 
     $ui->stop();
     $listener->close();
@@ -61,7 +81,7 @@ it('sends a submitted message to the server', function () {
     $ui->submit('hello world');
     delay(0.05);
 
-    expect($sent->lines)->toBe(['hello world']);
+    expect(decodeFromClient($sent->lines))->toEqual([new Chat('hello world')]);
 
     $ui->stop();
     $listener->close();

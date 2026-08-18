@@ -1,6 +1,8 @@
 <?php
 
 use Amp\Socket;
+use PhpCliChat\Protocol\Message\Broadcast;
+use PhpCliChat\Protocol\Message\Chat;
 use PhpCliChat\Server\Hub;
 
 use function Amp\delay;
@@ -13,7 +15,7 @@ it('does not send a message back to its sender', function () {
     connectClient($address);
     delay(0.05);
 
-    $alice->write("hello everyone\n");
+    $alice->write(wireLine(new Chat('hello everyone')));
     delay(0.05);
 
     expect($aliceLines->lines)->toBeEmpty();
@@ -21,7 +23,9 @@ it('does not send a message back to its sender', function () {
     $server->stop();
 });
 
-it('ignores whitespace-only lines', function () {
+it('ignores whitespace-only text', function () {
+    // The UI guards against blank input too, but the server cannot trust a
+    // client to have one.
     [$server, $address] = startChatServer();
 
     [$alice] = connectClient($address);
@@ -29,8 +33,8 @@ it('ignores whitespace-only lines', function () {
     [, $bobLines] = connectClient($address);
     delay(0.05);
 
-    $alice->write("   \n");
-    $alice->write("\n");
+    $alice->write(wireLine(new Chat('   ')));
+    $alice->write(wireLine(new Chat('')));
     delay(0.05);
 
     expect($bobLines->lines)->toBeEmpty();
@@ -46,13 +50,59 @@ it('relays in both directions', function () {
     [$bob, $bobLines] = connectClient($address);
     delay(0.05);
 
-    $alice->write("from alice\n");
+    $alice->write(wireLine(new Chat('from alice')));
     delay(0.05);
-    $bob->write("from bob\n");
+    $bob->write(wireLine(new Chat('from bob')));
     delay(0.05);
 
-    expect($bobLines->lines)->toBe(['client 0: from alice']);
-    expect($aliceLines->lines)->toBe(['client 1: from bob']);
+    expect(decodeFromServer($bobLines->lines))->toEqual([new Broadcast(0, 'from alice')]);
+    expect(decodeFromServer($aliceLines->lines))->toEqual([new Broadcast(1, 'from bob')]);
+
+    $server->stop();
+});
+
+it('stamps the sender itself rather than trusting the wire', function () {
+    [$server, $address] = startChatServer();
+
+    [, $aliceLines] = connectClient($address);
+    delay(0.05);
+    [$bob] = connectClient($address);
+    delay(0.05);
+    [, $carolLines] = connectClient($address);
+    delay(0.05);
+
+    // Bob claims to be Alice. The server knows which socket the bytes arrived
+    // on and ignores the claim.
+    $bob->write('{"type":"chat","from":0,"text":"not from alice"}' . "\n");
+    delay(0.05);
+
+    expect(decodeFromServer($carolLines->lines))->toEqual([new Broadcast(1, 'not from alice')]);
+    // The forged from:0 must not make the server skip alice (id 0) as a
+    // recipient by mistaking her for the sender.
+    expect(decodeFromServer($aliceLines->lines))->toEqual([new Broadcast(1, 'not from alice')]);
+
+    $server->stop();
+});
+
+it('survives a client that sends garbage', function () {
+    // Malformed input is dropped and logged, never fatal: one bad client must
+    // not disconnect itself or disturb its peers. Expect one "malformed
+    // message" line on stderr while this test runs.
+    [$server, $address] = startChatServer();
+
+    [$alice, $aliceLines] = connectClient($address);
+    delay(0.05);
+    [, $bobLines] = connectClient($address);
+    delay(0.05);
+
+    $alice->write("garbage\n");
+    delay(0.05);
+
+    $alice->write(wireLine(new Chat('still here')));
+    delay(0.05);
+
+    expect($aliceLines->closed)->toBeFalse();
+    expect(decodeFromServer($bobLines->lines))->toEqual([new Broadcast(0, 'still here')]);
 
     $server->stop();
 });
@@ -87,10 +137,10 @@ it('keeps serving the survivors after one client leaves', function () {
     $bob->close();
     delay(0.05);
 
-    $alice->write("still here\n");
+    $alice->write(wireLine(new Chat('still here')));
     delay(0.05);
 
-    expect($carolLines->lines)->toBe(['client 0: still here']);
+    expect(decodeFromServer($carolLines->lines))->toEqual([new Broadcast(0, 'still here')]);
     expect($bobLines->lines)->toBeEmpty();
 
     $server->stop();

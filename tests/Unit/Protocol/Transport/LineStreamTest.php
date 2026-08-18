@@ -1,25 +1,25 @@
 <?php
 
 use Amp\Socket;
-use PhpCliChat\Protocol\MessageStream;
+use PhpCliChat\Protocol\Transport\LineStream;
 use Tests\Support\LineCollector;
 
 use function Amp\async;
 use function Amp\delay;
 
-it('sends a message to the peer', function () {
+it('sends a line to the peer', function () {
     [$local, $remote] = Socket\createSocketPair();
     $collected = new LineCollector($remote);
 
-    (new MessageStream($local))->send('hello');
+    (new LineStream($local))->send('hello');
     delay(0.05);
 
     expect($collected->lines)->toBe(['hello']);
 });
 
-it('terminates each message with exactly one newline', function () {
+it('terminates each line with exactly one newline', function () {
     [$local, $remote] = Socket\createSocketPair();
-    $stream = new MessageStream($local);
+    $stream = new LineStream($local);
 
     $stream->send('one');
     $stream->send('two');
@@ -28,17 +28,17 @@ it('terminates each message with exactly one newline', function () {
     expect((string) $remote->read())->toBe("one\ntwo\n");
 });
 
-it('reassembles a message split across chunks', function () {
+it('reassembles a line split across chunks', function () {
     [$local, $remote] = Socket\createSocketPair();
 
     $received = [];
     async(function () use ($local, &$received) {
-        foreach ((new MessageStream($local))->receive() as $message) {
-            $received[] = $message;
+        foreach ((new LineStream($local))->receive() as $line) {
+            $received[] = $line;
         }
     })->ignore();
 
-    // TCP guarantees order, never message boundaries: the third message
+    // TCP guarantees order, never line boundaries: the third line
     // arrives in two pieces and still has to come out whole.
     $remote->write("one\ntwo\nthr");
     delay(0.05);
@@ -53,8 +53,8 @@ it('tolerates a peer that terminates with CRLF', function () {
 
     $received = [];
     async(function () use ($local, &$received) {
-        foreach ((new MessageStream($local))->receive() as $message) {
-            $received[] = $message;
+        foreach ((new LineStream($local))->receive() as $line) {
+            $received[] = $line;
         }
     })->ignore();
 
@@ -69,7 +69,7 @@ it('stops receiving once the peer hangs up', function () {
 
     $ended = false;
     async(function () use ($local, &$ended) {
-        foreach ((new MessageStream($local))->receive() as $ignored) {
+        foreach ((new LineStream($local))->receive() as $ignored) {
             // drain
         }
 
@@ -88,7 +88,7 @@ it('stops receiving once the peer hangs up', function () {
 it('closes its socket', function () {
     [$local, $remote] = Socket\createSocketPair();
 
-    (new MessageStream($local))->close();
+    (new LineStream($local))->close();
 
     expect($local->isClosed())->toBeTrue();
     expect($remote->read())->toBeNull();
@@ -96,7 +96,7 @@ it('closes its socket', function () {
 
 it('reports the address of the peer', function () {
     $listener = Socket\listen('127.0.0.1:0');
-    $stream = MessageStream::connect((string) $listener->getAddress());
+    $stream = LineStream::connect((string) $listener->getAddress());
 
     expect((string) $stream->getRemoteAddress())->toBe((string) $listener->getAddress());
 

@@ -6,8 +6,6 @@ use Amp\DeferredFuture;
 use PhpCliChat\Client\Ui;
 
 /**
- * A Ui that records instead of drawing.
- *
  * Constructing the real parent is harmless: Tui touches the terminal and the
  * event loop only in start(), which run() below never reaches.
  */
@@ -40,9 +38,8 @@ class FakeUi extends Ui
     }
 
     /**
-     * Pretends the user typed a line and hit enter. Note this bypasses the
-     * real Ui's trimming and blank-line guard, which live in the widget
-     * callback rather than here.
+     * Bypasses the real Ui's trimming and blank-line guard, which live in the
+     * widget callback rather than here.
      */
     public function submit(string $message): void
     {

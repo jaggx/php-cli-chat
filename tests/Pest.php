@@ -1,6 +1,9 @@
 <?php
 
 use Amp\Socket;
+use PhpCliChat\Protocol\Codec\Decoder;
+use PhpCliChat\Protocol\Codec\Encoder;
+use PhpCliChat\Protocol\Message;
 use PhpCliChat\Server\ChatServer;
 use PhpCliChat\Server\Hub;
 use Revolt\EventLoop;
@@ -37,8 +40,7 @@ pest()->afterEach(function () {
 */
 
 /**
- * Boots a server on an OS-assigned port and starts accepting in the
- * background. Returns the server and the address to connect to.
+ * Binds an OS-assigned port and accepts in the background.
  *
  * @return array{ChatServer, string}
  */
@@ -53,8 +55,6 @@ function startChatServer(?Hub $hub = null): array
 }
 
 /**
- * Connects a client and starts collecting whatever the server sends it.
- *
  * @return array{Socket\Socket, LineCollector}
  */
 function connectClient(string $address): array
@@ -62,4 +62,39 @@ function connectClient(string $address): array
     $socket = Socket\connect($address);
 
     return [$socket, new LineCollector($socket)];
+}
+
+/**
+ * Newline included.
+ */
+function wireLine(Message $message): string
+{
+    return Encoder::encode($message) . "\n";
+}
+
+/**
+ * Decoding rather than matching hand-written JSON keeps a key-order change
+ * from failing a test. A malformed line throws and fails it.
+ *
+ * @param string[] $lines
+ *
+ * @return Message[]
+ */
+function decodeFromServer(array $lines): array
+{
+    $decoder = Decoder::forClient();
+
+    return array_map(fn (string $line) => $decoder->decode($line), $lines);
+}
+
+/**
+ * @param string[] $lines
+ *
+ * @return Message[]
+ */
+function decodeFromClient(array $lines): array
+{
+    $decoder = Decoder::forServer();
+
+    return array_map(fn (string $line) => $decoder->decode($line), $lines);
 }

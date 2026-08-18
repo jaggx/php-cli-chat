@@ -3,6 +3,9 @@
 namespace PhpCliChat\Server;
 
 use Amp\Socket;
+use PhpCliChat\Protocol\Message\Broadcast;
+use PhpCliChat\Protocol\Message\Chat;
+use PhpCliChat\Protocol\Unreadable;
 
 use function Amp\async;
 use function Amp\ByteStream\getStderr;
@@ -62,18 +65,30 @@ class ChatServer
 
     private function handleConnection(Connection $connection): void
     {
-        foreach ($connection->receive() as $line) {
-            $line = trim($line);
-
-            if ('' === $line) {
+        foreach ($connection->receive() as $message) {
+            if ($message instanceof Unreadable) {
+                getStderr()->write("client $connection->id sent a malformed message: $message->reason" . PHP_EOL);
                 continue;
             }
 
-            $this->broadcast($connection, "client $connection->id: $line");
+            // The server codec only ever produces Message\Chat today, so this cannot fire
+            // yet; it is what PHPStan needs to narrow, and the landing spot for the next
+            // client->server type.
+            if (!$message instanceof Chat) {
+                continue;
+            }
+
+            $text = trim($message->text);
+
+            if ('' === $text) {
+                continue;
+            }
+
+            $this->broadcast($connection, new Broadcast($connection->id, $text));
         }
     }
 
-    private function broadcast(Connection $sender, string $message): void
+    private function broadcast(Connection $sender, Broadcast $message): void
     {
         foreach ($this->hub->all() as $peer) {
             if ($peer->id === $sender->id) {

@@ -46,6 +46,22 @@ Type a message and press Enter. `Esc` or `Ctrl+C` quits the client.
 
 `Ctrl+C` on the server closes every client connection and exits.
 
+## Protocol
+
+Client and server exchange one JSON object per line, UTF-8.
+
+```
+c→s   {"type":"chat","text":"hello everyone"}
+s→c   {"type":"chat","from":0,"text":"hello everyone"}
+```
+
+The client never sends `from`: the server stamps the id of the connection the
+bytes arrived on, so a sender cannot be forged. Unknown keys are ignored on
+decode, so one side can learn a new field before the other.
+
+Anything else — invalid JSON, an unknown `type`, a missing or wrong-typed
+field — is dropped. The server logs it and the connection stays open.
+
 ## Development
 
 ```bash
@@ -60,6 +76,9 @@ composer stan    # PHPStan at --level=max over src/ and bin/
 - No join or leave notices.
 - No authentication and no TLS. It binds to localhost unless you pass
   `--host`
+- The JSON protocol is not compatible with v0.1.0's plain-text wire. Mixing an
+  old client with a new server (or the reverse) produces a connected-but-silent
+  session; both ends must be from the same version.
 
 ## Planned features
 

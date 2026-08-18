@@ -1,13 +1,13 @@
 <?php
 
-namespace PhpCliChat\Protocol;
+namespace PhpCliChat\Protocol\Transport;
 
 use Amp\Socket;
 
 use function Amp\async;
 use function Amp\ByteStream\splitLines;
 
-readonly class MessageStream
+readonly class LineStream
 {
     public function __construct(
         private Socket\Socket $socket,
@@ -23,9 +23,9 @@ readonly class MessageStream
         return $this->socket->getRemoteAddress();
     }
 
-    public function send(string $message): void
+    public function send(string $line): void
     {
-        async(fn() => $this->socket->write($message . PHP_EOL))->ignore();
+        async(fn() => $this->socket->write($line . PHP_EOL))->ignore();
     }
 
     /**

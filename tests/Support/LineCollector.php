@@ -7,9 +7,6 @@ use Amp\Socket;
 use function Amp\async;
 use function Amp\ByteStream\splitLines;
 
-/**
- * Drains a socket in the background, keeping every line it received.
- */
 class LineCollector
 {
     /**

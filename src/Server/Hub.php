@@ -3,7 +3,6 @@
 namespace PhpCliChat\Server;
 
 use Amp\Socket;
-use PhpCliChat\Protocol\MessageStream;
 
 class Hub
 {
@@ -18,7 +17,7 @@ class Hub
         $id = $this->nextID;
         $this->nextID = $id + 1;
 
-        return $this->connections[$id] = new Connection($id, new MessageStream($socket));
+        return $this->connections[$id] = Connection::accept($socket, $id);
     }
 
     public function remove(int $id): void
