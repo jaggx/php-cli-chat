@@ -4,7 +4,7 @@ A simple terminal chat: an async TCP server and a TUI client, built on
 [AMPHP](https://amphp.org) and [Symfony TUI](https://symfony.com/doc/current/tui.html).
 
 ```
- Connected to 127.0.0.1:1337. Esc or Ctrl+C to quit.
+ Connected to 127.0.0.1:1337. Type /help for commands.
  me: hey there
  client 1: hello back
 
@@ -43,9 +43,20 @@ php bin/client.php --host=192.168.1.46
 php bin/client.php --host=my-laptop     # a name works here, if DNS knows it
 ```
 
-Type a message and press Enter. `Esc` or `Ctrl+C` quits the client.
+Type a message and press Enter. `Esc`, `Ctrl+C` or `/quit` quits the client.
 
 `Ctrl+C` on the server closes every client connection and exits.
+
+## Commands
+
+Anything you type that starts with `/` is a command rather than chat:
+
+| Command | What it does                                            |
+|---------|---------------------------------------------------------|
+| `/help` | Lists the commands, in your own log.                    |
+| `/quit` | Closes the client, exactly as `Esc` or `Ctrl + C` does. |
+
+An unrecognized command is reported in your own log and sent to nobody
 
 ## Protocol
 
@@ -56,12 +67,8 @@ c→s   {"type":"chat","text":"hello everyone"}
 s→c   {"type":"chat","from":0,"text":"hello everyone"}
 ```
 
-The client never sends `from`: the server stamps the id of the connection the
-bytes arrived on, so a sender cannot be forged. Unknown keys are ignored on
-decode, so one side can learn a new field before the other.
-
-Anything else — invalid JSON, an unknown `type`, a missing or wrong-typed
-field — is dropped. The server logs it and the connection stays open.
+Anything else — invalid JSON, an unknown `type`, a missing or wrong-typed field — is dropped. The server logs it and the
+connection stays open.
 
 ## Development
 
@@ -77,16 +84,17 @@ composer stan    # PHPStan at --level=max over src/ and bin/
 - No join or leave notices.
 - No authentication and no TLS. It binds to localhost unless you pass
   `--host`
-- The JSON protocol is not compatible with v0.1.0's plain-text wire. Mixing an
-  old client with a new server (or the reverse) produces a connected-but-silent
-  session; both ends must be from the same version.
+- The JSON protocol is not compatible with v0.1.0's plain-text wire. Mixing an old client with a new server (or the
+  reverse) produces a connected-but-silent session; both ends must be from the same version.
+- A message whose first character is `/` cannot be sent: a leading slash always means a command, and there is no `//`
+  escape yet.
 
 ## Planned features
 
 - Add support for nicknames
 - Allow creations of rooms, and join them
 - Add persistence to chats
-- Add server and client commands
+- Add server commands — `/quit` is client-side; `/nick` and `/join` must reach the server
 
 ## License
 

@@ -119,3 +119,111 @@ it('stops the ui when the server hangs up', function () {
 
     $listener->close();
 });
+
+it('quits on /quit without telling the server', function () {
+    // Nothing goes on the wire: closing the socket is what the server reads,
+    // and LineStream::send does not await its write, so a message sent just
+    // before close() could be lost anyway.
+    [$ui, $peer, $listener] = connectFakeClient();
+    $sent = new LineCollector($peer);
+    delay(0.05);
+
+    $ui->submit('/quit');
+    delay(0.05);
+
+    expect($ui->stopped)->toBeTrue();
+    expect($sent->lines)->toBeEmpty();
+    expect($ui->appended)->not->toContain('me: /quit');
+    expect($sent->closed)->toBeTrue();
+
+    $listener->close();
+});
+
+it('lists the commands on /help', function () {
+    [$ui, $peer, $listener] = connectFakeClient();
+    $sent = new LineCollector($peer);
+    delay(0.05);
+
+    $ui->submit('/help');
+    delay(0.05);
+
+    expect($ui->appended)->toContain('*** /help — show this list');
+    expect($ui->appended)->toContain('*** /quit — close the client, like Esc');
+    expect($ui->stopped)->toBeFalse();
+    expect($sent->lines)->toBeEmpty();
+
+    $ui->stop();
+    $listener->close();
+});
+
+it('reports an unknown command locally', function () {
+    // A typo stays in the typist's own log rather than going out to the room.
+    [$ui, $peer, $listener] = connectFakeClient();
+    $sent = new LineCollector($peer);
+    delay(0.05);
+
+    $ui->submit('/qut');
+    delay(0.05);
+
+    expect($ui->appended)->toContain('*** unknown command: /qut');
+    expect($ui->stopped)->toBeFalse();
+    expect($sent->lines)->toBeEmpty();
+
+    $ui->stop();
+    $listener->close();
+});
+
+it('truncates a long command name in the notice', function () {
+    // Same 40-character cap Codec\Decoder puts on an unexpected type.
+    [$ui, , $listener] = connectFakeClient();
+    delay(0.05);
+
+    $ui->submit('/' . str_repeat('x', 60));
+
+    expect($ui->appended)->toContain('*** unknown command: /' . str_repeat('x', 40));
+
+    $ui->stop();
+    $listener->close();
+});
+
+it('truncates a long multibyte command name in the notice', function () {
+    // A byte-wise cut can slice a multibyte character in half, leaving an
+    // incomplete UTF-8 sequence that Sanitizer::sanitize() cannot repair and
+    // Ui::append() then renders as an empty line.
+    [$ui, , $listener] = connectFakeClient();
+    delay(0.05);
+
+    $ui->submit('/' . str_repeat('あ', 50));
+
+    expect($ui->appended)->toContain('*** unknown command: /' . str_repeat('あ', 40));
+
+    $ui->stop();
+    $listener->close();
+});
+
+it('does not drop a command name that is the falsy string "0"', function () {
+    // '0' is falsy in PHP, so a truthiness check would drop it from the notice.
+    [$ui, , $listener] = connectFakeClient();
+    delay(0.05);
+
+    $ui->submit('/0');
+
+    expect($ui->appended)->toContain('*** unknown command: /0');
+
+    $ui->stop();
+    $listener->close();
+});
+
+it('sends a message whose slash is not leading as chat', function () {
+    [$ui, $peer, $listener] = connectFakeClient();
+    $sent = new LineCollector($peer);
+    delay(0.05);
+
+    $ui->submit('why did you do /that?');
+    delay(0.05);
+
+    expect(decodeFromClient($sent->lines))->toEqual([new Chat('why did you do /that?')]);
+
+    $ui->stop();
+    $listener->close();
+});
