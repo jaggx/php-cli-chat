@@ -7,6 +7,7 @@ class CommandList
     private const array DESCRIPTIONS = [
         Command::HELP => 'show this list',
         Command::LOGIN => 'set the name peers see',
+        Command::LOGOUT => 'give the name up and go back to Anonymous',
         Command::QUIT => 'close the client, like Esc',
     ];
 

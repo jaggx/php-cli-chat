@@ -55,7 +55,8 @@ Anything you type that starts with `/` is a command rather than chat:
 | Command             | What it does                                            |
 |---------------------|---------------------------------------------------------|
 | `/help`             | Lists the commands, in your own log.                    |
-| `/login <username>` | Sets the name peers see. Once per connection.           |
+| `/login <username>` | Sets the name peers see. One at a time.                 |
+| `/logout`           | Gives the name up; peers see `Anonymous` again.         |
 | `/quit`             | Closes the client, exactly as `Esc` or `Ctrl + C` does. |
 
 An unrecognized command is reported in your own log and sent to nobody
@@ -67,6 +68,7 @@ Client and server exchange one JSON object per line, UTF-8.
 ```
 c→s   {"type":"chat","text":"hello everyone"}
 c→s   {"type":"login","name":"alice"}
+c→s   {"type":"logout"}
 s→c   {"type":"chat","from":"alice","text":"hello everyone"}
 s→c   {"type":"notice","text":"you are now alice"}
 ```
@@ -84,7 +86,7 @@ composer stan    # PHPStan at --level=max over src/ and bin/
 ## Known limitations
 
 - `symfony/tui` is an experimental Symfony component with no backwards compatibility promise, hence the `~8.1.0` pin.
-- A name lasts as long as its connection and is not persisted. It cannot be changed without reconnecting.
+- A name lasts as long as its connection and is not persisted.
 - A name is ASCII letters, digits and spaces only, at most 20 characters, so `José` and `さくら` are refused.
 - No authentication and no TLS. It binds to localhost unless you pass `--host`
 

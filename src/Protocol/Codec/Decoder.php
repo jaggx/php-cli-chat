@@ -18,6 +18,7 @@ readonly class Decoder
         return new self([
             'chat' => Message\Chat::class,
             'login' => Message\Login::class,
+            'logout' => Message\Logout::class,
         ]);
     }
 

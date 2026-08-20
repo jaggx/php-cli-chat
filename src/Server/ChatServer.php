@@ -7,6 +7,7 @@ use Amp\Socket;
 use PhpCliChat\Protocol\Message\Broadcast;
 use PhpCliChat\Protocol\Message\Chat;
 use PhpCliChat\Protocol\Message\Login;
+use PhpCliChat\Protocol\Message\Logout;
 use PhpCliChat\Protocol\Message\Notice;
 use PhpCliChat\Protocol\Unreadable;
 
@@ -94,6 +95,7 @@ class ChatServer
             match (true) {
                 $message instanceof Unreadable => $this->logUnreadable($connection, $message),
                 $message instanceof Login => $this->login($connection, $message),
+                $message instanceof Logout => $this->logout($connection),
                 $message instanceof Chat => $this->chat($connection, $message),
                 default => null,
             };
@@ -122,6 +124,17 @@ class ChatServer
             $this->hub->claim($connection->id, $message->name);
         } catch (NameRefused $e) {
             $connection->send(new Notice($e->getMessage()));
+
+            return;
+        }
+
+        $connection->send(new Notice("you are now {$this->hub->label($connection->id)}"));
+    }
+
+    private function logout(Connection $connection): void
+    {
+        if (!$this->hub->release($connection->id)) {
+            $connection->send(new Notice('you are not logged in'));
 
             return;
         }

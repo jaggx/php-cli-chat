@@ -5,6 +5,7 @@ use PhpCliChat\Protocol\Codec\Encoder;
 use PhpCliChat\Protocol\Message\Broadcast;
 use PhpCliChat\Protocol\Message\Chat;
 use PhpCliChat\Protocol\Message\Login;
+use PhpCliChat\Protocol\Message\Logout;
 use PhpCliChat\Protocol\Message\Notice;
 
 it('encodes what a client sends', function () {
@@ -48,4 +49,8 @@ it('encodes a login', function () {
 it('encodes a notice', function () {
     expect(Encoder::encode(new Notice('you are now alice')))
         ->toBe('{"type":"notice","text":"you are now alice"}');
+});
+
+it('encodes a logout, which carries no payload', function () {
+    expect(Encoder::encode(new Logout()))->toBe('{"type":"logout"}');
 });

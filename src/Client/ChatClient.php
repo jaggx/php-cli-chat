@@ -5,6 +5,7 @@ namespace PhpCliChat\Client;
 use PhpCliChat\Protocol\Message\Broadcast;
 use PhpCliChat\Protocol\Message\Chat;
 use PhpCliChat\Protocol\Message\Login;
+use PhpCliChat\Protocol\Message\Logout;
 use PhpCliChat\Protocol\Message\Notice;
 use PhpCliChat\Protocol\MessageChannel;
 use PhpCliChat\Protocol\Transport\LineStream;
@@ -67,10 +68,11 @@ class ChatClient
     private function run(Command $command): void
     {
         match ($command->name) {
-            Command::HELP  => $this->help(),
-            Command::LOGIN => $this->login($command->args),
-            Command::QUIT  => $this->ui->stop(),
-            default        => $this->ui->append('*** unknown command: /' . $this->truncate($command->name)),
+            Command::HELP   => $this->help(),
+            Command::LOGIN  => $this->login($command->args),
+            Command::LOGOUT => $this->channel->send(new Logout()),
+            Command::QUIT   => $this->ui->stop(),
+            default         => $this->ui->append('*** unknown command: /' . $this->truncate($command->name)),
         };
     }
 

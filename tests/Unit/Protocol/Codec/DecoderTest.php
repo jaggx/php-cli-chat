@@ -6,6 +6,7 @@ use PhpCliChat\Protocol\Codec\MalformedMessage;
 use PhpCliChat\Protocol\Message\Broadcast;
 use PhpCliChat\Protocol\Message\Chat;
 use PhpCliChat\Protocol\Message\Login;
+use PhpCliChat\Protocol\Message\Logout;
 use PhpCliChat\Protocol\Message\Notice;
 
 it('round-trips a client chat message', function () {
@@ -131,5 +132,23 @@ it('rejects a notice with a missing or non-string text', function (string $line)
 it('rejects a login arriving at a client', function () {
     // login is the other direction's type. Each registry holds only its own.
     expect(fn () => Decoder::toClient()->decode('{"type":"login","name":"alice"}'))
+        ->toThrow(MalformedMessage::class);
+});
+
+it('round-trips a client logout', function () {
+    $line = Encoder::encode(new Logout());
+
+    expect(Decoder::toServer()->decode($line))->toEqual(new Logout());
+});
+
+it('ignores whatever a logout carries', function () {
+    // /logout takes no argument, and the connection it arrived on is who it
+    // is about, so there is no field a client could get wrong.
+    expect(Decoder::toServer()->decode('{"type":"logout","name":"bob"}'))
+        ->toEqual(new Logout());
+});
+
+it('rejects a logout arriving at a client', function () {
+    expect(fn () => Decoder::toClient()->decode('{"type":"logout"}'))
         ->toThrow(MalformedMessage::class);
 });

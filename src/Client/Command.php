@@ -7,6 +7,7 @@ readonly class Command
     public const null CHAT = null;
     public const string HELP = 'help';
     public const string LOGIN = 'login';
+    public const string LOGOUT = 'logout';
     public const string QUIT = 'quit';
 
     public function __construct(

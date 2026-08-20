@@ -5,6 +5,7 @@ use Amp\Socket;
 use PhpCliChat\Protocol\Message\Broadcast;
 use PhpCliChat\Protocol\Message\Chat;
 use PhpCliChat\Protocol\Message\Login;
+use PhpCliChat\Protocol\Message\Logout;
 use PhpCliChat\Protocol\Message\Notice;
 use PhpCliChat\Server\Hub;
 
@@ -323,6 +324,91 @@ it('frees a name when its connection closes', function () {
     delay(0.05);
 
     expect(decodeFromServer($bobLines->lines))->toEqual([new Notice('you are now alice')]);
+
+    $server->stop();
+});
+
+it('answers a logout with a notice, and tells no peer', function () {
+    [$server, $address] = startChatServer();
+
+    [$alice, $aliceLines] = connectClient($address);
+    [, $bobLines] = connectClient($address);
+
+    $alice->write(wireLine(new Login('alice')));
+    delay(0.05);
+    $alice->write(wireLine(new Logout()));
+    delay(0.05);
+    $alice->write(wireLine(new Chat('who am i')));
+    delay(0.05);
+
+    expect(decodeFromServer($aliceLines->lines))->toEqual([
+        new Notice('you are now alice'),
+        new Notice('you are now Anonymous'),
+    ]);
+
+    // Peers hear the label change on the next thing she says, as they did on
+    // the way in, and nothing else.
+    expect(decodeFromServer($bobLines->lines))->toEqual([new Broadcast('Anonymous', 'who am i')]);
+
+    $server->stop();
+});
+
+it('refuses a logout from a connection that never logged in', function () {
+    [$server, $address] = startChatServer();
+
+    [$alice, $aliceLines] = connectClient($address);
+
+    $alice->write(wireLine(new Logout()));
+    delay(0.05);
+
+    expect(decodeFromServer($aliceLines->lines))->toEqual([new Notice('you are not logged in')]);
+
+    $server->stop();
+});
+
+it('frees a name for another connection on logout', function () {
+    // The same release the disconnect path runs, so a name given up is free
+    // immediately rather than at the end of the session.
+    [$server, $address] = startChatServer();
+
+    [$alice] = connectClient($address);
+    [$bob, $bobLines] = connectClient($address);
+
+    $alice->write(wireLine(new Login('alice')));
+    delay(0.05);
+    $bob->write(wireLine(new Login('alice')));
+    delay(0.05);
+    $alice->write(wireLine(new Logout()));
+    delay(0.05);
+    $bob->write(wireLine(new Login('alice')));
+    delay(0.05);
+
+    expect(decodeFromServer($bobLines->lines))->toEqual([
+        new Notice('the name alice is taken'),
+        new Notice('you are now alice'),
+    ]);
+
+    $server->stop();
+});
+
+it('lets a connection take a new name after logging out', function () {
+    // /logout then /login is what a rename costs, and the scrollback ambiguity
+    // it brings back is the reason claim() still refuses a rename outright.
+    [$server, $address] = startChatServer();
+
+    [$alice] = connectClient($address);
+    [, $bobLines] = connectClient($address);
+
+    $alice->write(wireLine(new Login('alice')));
+    delay(0.05);
+    $alice->write(wireLine(new Logout()));
+    delay(0.05);
+    $alice->write(wireLine(new Login('carol')));
+    delay(0.05);
+    $alice->write(wireLine(new Chat('still me')));
+    delay(0.05);
+
+    expect(decodeFromServer($bobLines->lines))->toEqual([new Broadcast('carol', 'still me')]);
 
     $server->stop();
 });

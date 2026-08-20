@@ -30,7 +30,7 @@ class Hub
         $connection = $this->connections[$id] ?? null;
 
         unset($this->connections[$id]);
-        $this->roster->release($id);
+        $this->release($id);
 
         $connection?->close();
     }
@@ -49,6 +49,11 @@ class Hub
     public function claim(int $id, string $name): void
     {
         $this->roster->claim($id, $name);
+    }
+
+    public function release(int $id): bool
+    {
+        return $this->roster->release($id);
     }
 
     public function label(int $id): string

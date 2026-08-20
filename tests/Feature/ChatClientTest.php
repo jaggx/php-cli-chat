@@ -6,6 +6,7 @@ use PhpCliChat\Client\ClientOptions;
 use PhpCliChat\Protocol\Message\Broadcast;
 use PhpCliChat\Protocol\Message\Chat;
 use PhpCliChat\Protocol\Message\Login;
+use PhpCliChat\Protocol\Message\Logout;
 use PhpCliChat\Protocol\Message\Notice;
 use Tests\Support\FakeUi;
 use Tests\Support\LineCollector;
@@ -151,6 +152,7 @@ it('lists the commands on /help', function () {
 
     expect($ui->appended)->toContain('*** /help — show this list');
     expect($ui->appended)->toContain('*** /login <username> — set the name peers see');
+    expect($ui->appended)->toContain('*** /logout — give the name up and go back to Anonymous');
     expect($ui->appended)->toContain('*** /quit — close the client, like Esc');
     expect($ui->stopped)->toBeFalse();
     expect($sent->lines)->toBeEmpty();
@@ -263,6 +265,41 @@ it('appends a notice from the server', function () {
     delay(0.05);
 
     expect($ui->appended)->toContain('*** you are now alice');
+
+    $ui->stop();
+    $listener->close();
+});
+
+it('sends a logout and appends nothing of its own', function () {
+    // Same division as /login: the server owns the name, so its notice is the
+    // only feedback the client can honestly give.
+    [$ui, $peer, $listener] = connectFakeClient();
+    $sent = new LineCollector($peer);
+    delay(0.05);
+
+    $before = count($ui->appended);
+
+    $ui->submit('/logout');
+    delay(0.05);
+
+    expect(decodeFromClient($sent->lines))->toEqual([new Logout()]);
+    expect($ui->appended)->toHaveCount($before);
+    expect($ui->stopped)->toBeFalse();
+
+    $ui->stop();
+    $listener->close();
+});
+
+it('drops an argument given to /logout', function () {
+    // Nothing to name: the connection it arrives on is who it is about.
+    [$ui, $peer, $listener] = connectFakeClient();
+    $sent = new LineCollector($peer);
+    delay(0.05);
+
+    $ui->submit('/logout alice');
+    delay(0.05);
+
+    expect(decodeFromClient($sent->lines))->toEqual([new Logout()]);
 
     $ui->stop();
     $listener->close();

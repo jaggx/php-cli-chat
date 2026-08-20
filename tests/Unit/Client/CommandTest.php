@@ -39,4 +39,8 @@ it('parses a leading slash into a name and args', function (string $input, strin
     // rules, which is an answer rather than a parsing accident.
     'an interior tab survives' => ["/login John\tDoe", 'login', "John\tDoe"],
     'login with no argument' => ['/login', 'login', ''],
+
+    // /logout takes none, and is a distinct name rather than a prefix of one.
+    'logout' => ['/logout', 'logout', ''],
+    'logout with an argument it ignores' => ['/logout alice', 'logout', 'alice'],
 ]);

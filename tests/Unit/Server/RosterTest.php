@@ -125,6 +125,28 @@ it('refuses a name that only differs by a run of spaces', function () {
         ->toThrow(NameRefused::class, 'the name John Doe is taken');
 });
 
+it('reports whether a release freed anything', function () {
+    // /logout answers "you are not logged in" off this, so it has to tell a
+    // name that was given up from one that was never held.
+    $roster = new Roster();
+    $roster->claim(0, 'alice');
+
+    expect($roster->release(0))->toBeTrue();
+    expect($roster->release(0))->toBeFalse();
+    expect($roster->release(1))->toBeFalse();
+});
+
+it('lets a released id claim a name again', function () {
+    // A name is claimed once per holding, not once per connection: giving one
+    // up is what makes a second claim legal.
+    $roster = new Roster();
+    $roster->claim(0, 'alice');
+    $roster->release(0);
+    $roster->claim(0, 'bob');
+
+    expect($roster->label(0))->toBe('bob');
+});
+
 it('frees a name when its id is released', function () {
     $roster = new Roster();
     $roster->claim(0, 'alice');

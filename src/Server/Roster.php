@@ -39,9 +39,14 @@ class Roster
         $this->names[$id] = $name;
     }
 
-    public function release(int $id): void
+    // The bool is /logout's answer; the disconnect path has no use for it.
+    public function release(int $id): bool
     {
+        $held = isset($this->names[$id]);
+
         unset($this->names[$id]);
+
+        return $held;
     }
 
     private function taken(string $name): bool
