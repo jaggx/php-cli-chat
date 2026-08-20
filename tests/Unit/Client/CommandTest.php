@@ -29,6 +29,14 @@ it('parses a leading slash into a name and args', function (string $input, strin
     // A bare slash has an empty name, which no match arm claims.
     'a bare slash' => ['/', '', ''],
 
-    // A single space is the only separator while no command takes arguments.
-    'a tab is not a separator' => ["/quit\tnow", "quit\tnow", ''],
+    // A run of whitespace is the separator, so a stray extra space is absorbed
+    // and a tab separates too.
+    'a tab is a separator' => ["/quit\tnow", 'quit', 'now'],
+    'a run of spaces is one separator' => ['/login   alice', 'login', 'alice'],
+    'a tab before the argument' => ["/login\talice", 'login', 'alice'],
+    'an argument with an interior space' => ['/login John Doe', 'login', 'John Doe'],
+    // An interior tab survives into the name and is refused by the server's
+    // rules, which is an answer rather than a parsing accident.
+    'an interior tab survives' => ["/login John\tDoe", 'login', "John\tDoe"],
+    'login with no argument' => ['/login', 'login', ''],
 ]);

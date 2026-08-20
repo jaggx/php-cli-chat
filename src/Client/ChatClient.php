@@ -4,6 +4,8 @@ namespace PhpCliChat\Client;
 
 use PhpCliChat\Protocol\Message\Broadcast;
 use PhpCliChat\Protocol\Message\Chat;
+use PhpCliChat\Protocol\Message\Login;
+use PhpCliChat\Protocol\Message\Notice;
 use PhpCliChat\Protocol\MessageChannel;
 use PhpCliChat\Protocol\Transport\LineStream;
 
@@ -65,9 +67,10 @@ class ChatClient
     private function run(Command $command): void
     {
         match ($command->name) {
-            Command::HELP => $this->help(),
-            Command::QUIT => $this->ui->stop(),
-            default       => $this->ui->append('*** unknown command: /' . $this->truncate($command->name)),
+            Command::HELP  => $this->help(),
+            Command::LOGIN => $this->login($command->args),
+            Command::QUIT  => $this->ui->stop(),
+            default        => $this->ui->append('*** unknown command: /' . $this->truncate($command->name)),
         };
     }
 
@@ -77,6 +80,19 @@ class ChatClient
         foreach (CommandList::lines() as $line) {
             $this->ui->append("*** $line");
         }
+    }
+
+    private function login(string $name): void
+    {
+        if ('' === $name) {
+            $this->ui->append('*** usage: /login <username>');
+
+            return;
+        }
+
+        // No local echo and no validation: the server's notice is the feedback,
+        // and the rules are its to enforce.
+        $this->channel->send(new Login($name));
     }
 
     private function truncate(string $name): string
@@ -92,7 +108,11 @@ class ChatClient
         try {
             foreach ($this->channel->receive() as $message) {
                 if ($message instanceof Broadcast) {
-                    $this->ui->append("client $message->from: $message->text");
+                    $this->ui->append("$message->from: $message->text");
+                }
+
+                if ($message instanceof Notice) {
+                    $this->ui->append("*** $message->text");
                 }
             }
 

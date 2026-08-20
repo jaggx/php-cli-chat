@@ -14,6 +14,7 @@ use Tests\Support\LineCollector;
 use Tests\TestCase;
 
 use function Amp\async;
+use function Amp\delay;
 
 pest()->extend(TestCase::class)->in('Feature');
 
@@ -84,13 +85,19 @@ function loggedTraffic(WritableBuffer $log): array
 }
 
 /**
+ * Settles before returning: the server accepts on its own fiber, so every
+ * caller needs the loop to run before it can write or assert.
+ *
  * @return array{Socket\Socket, LineCollector}
  */
 function connectClient(string $address): array
 {
     $socket = Socket\connect($address);
+    $collector = new LineCollector($socket);
 
-    return [$socket, new LineCollector($socket)];
+    delay(0.05);
+
+    return [$socket, $collector];
 }
 
 /**
@@ -111,7 +118,7 @@ function wireLine(Message $message): string
  */
 function decodeFromServer(array $lines): array
 {
-    $decoder = Decoder::forClient();
+    $decoder = Decoder::toClient();
 
     return array_map(fn (string $line) => $decoder->decode($line), $lines);
 }
@@ -123,7 +130,7 @@ function decodeFromServer(array $lines): array
  */
 function decodeFromClient(array $lines): array
 {
-    $decoder = Decoder::forServer();
+    $decoder = Decoder::toServer();
 
     return array_map(fn (string $line) => $decoder->decode($line), $lines);
 }

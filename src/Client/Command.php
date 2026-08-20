@@ -6,6 +6,7 @@ readonly class Command
 {
     public const null CHAT = null;
     public const string HELP = 'help';
+    public const string LOGIN = 'login';
     public const string QUIT = 'quit';
 
     public function __construct(
@@ -19,7 +20,9 @@ readonly class Command
             return self::CHAT;
         }
 
-        $parts = explode(' ', substr($input, 1), 2);
+        // A whitespace run, not one space: /login   alice gives alice, while an
+        // interior tab survives into the argument for the server to refuse.
+        $parts = preg_split('/\s+/', substr($input, 1), 2) ?: [''];
 
         return new self(strtolower($parts[0]), trim($parts[1] ?? ''));
     }

@@ -36,10 +36,10 @@ it('decodes in its own direction', function () {
     [$local, $remote] = Socket\createSocketPair();
     $received = new MessageCollector(MessageChannel::forClient(new LineStream($local)));
 
-    $remote->write('{"type":"chat","from":7,"text":"hi"}' . "\n");
+    $remote->write('{"type":"chat","from":"alice","text":"hi"}' . "\n");
     delay(0.05);
 
-    expect($received->messages)->toEqual([new Broadcast(7, 'hi')]);
+    expect($received->messages)->toEqual([new Broadcast('alice', 'hi')]);
 });
 
 it('yields Unreadable for a line it cannot decode', function () {

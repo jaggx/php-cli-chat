@@ -18,12 +18,12 @@ readonly class MessageChannel
 
     public static function forServer(LineStream $stream, ?WireLog $log = null): self
     {
-        return new self($stream, Decoder::forServer(), $log);
+        return new self($stream, Decoder::toServer(), $log);
     }
 
     public static function forClient(LineStream $stream, ?WireLog $log = null): self
     {
-        return new self($stream, Decoder::forClient(), $log);
+        return new self($stream, Decoder::toClient(), $log);
     }
 
     public function getRemoteAddress(): Socket\SocketAddress

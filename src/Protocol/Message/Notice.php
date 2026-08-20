@@ -5,7 +5,7 @@ namespace PhpCliChat\Protocol\Message;
 use PhpCliChat\Protocol\Codec\MalformedMessage;
 use PhpCliChat\Protocol\Message;
 
-readonly class Chat implements Message
+readonly class Notice implements Message
 {
     public function __construct(
         public string $text,
@@ -13,7 +13,7 @@ readonly class Chat implements Message
 
     public function type(): string
     {
-        return 'chat';
+        return 'notice';
     }
 
     /**
@@ -33,7 +33,7 @@ readonly class Chat implements Message
         $text = $payload['text'] ?? null;
 
         if (!is_string($text)) {
-            throw new MalformedMessage('chat: "text" must be a string');
+            throw new MalformedMessage('notice: "text" must be a string');
         }
 
         return new self($text);

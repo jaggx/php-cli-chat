@@ -8,7 +8,7 @@ use PhpCliChat\Protocol\Message;
 readonly class Broadcast implements Message
 {
     public function __construct(
-        public int    $from,
+        public string $from,
         public string $text,
     ) {}
 
@@ -35,8 +35,8 @@ readonly class Broadcast implements Message
         $from = $payload['from'] ?? null;
         $text = $payload['text'] ?? null;
 
-        if (!is_int($from)) {
-            throw new MalformedMessage('chat: "from" must be an int');
+        if (!is_string($from)) {
+            throw new MalformedMessage('chat: "from" must be a string');
         }
 
         if (!is_string($text)) {

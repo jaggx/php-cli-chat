@@ -5,6 +5,8 @@ use PhpCliChat\Client\ChatClient;
 use PhpCliChat\Client\ClientOptions;
 use PhpCliChat\Protocol\Message\Broadcast;
 use PhpCliChat\Protocol\Message\Chat;
+use PhpCliChat\Protocol\Message\Login;
+use PhpCliChat\Protocol\Message\Notice;
 use Tests\Support\FakeUi;
 use Tests\Support\LineCollector;
 
@@ -47,14 +49,14 @@ it('announces the connection', function () {
 });
 
 it('appends messages coming from the server', function () {
-    // Rendering stays a client concern: the sender arrives as data and the
-    // client is what turns it into a line of text.
+    // Rendering stays a client concern, but the label is the server's: the
+    // client interpolates what it is given and composes nothing.
     [$ui, $peer, $listener] = connectFakeClient();
 
-    $peer->write(wireLine(new Broadcast(7, 'hi there')));
+    $peer->write(wireLine(new Broadcast('alice', 'hi there')));
     delay(0.05);
 
-    expect($ui->appended)->toContain('client 7: hi there');
+    expect($ui->appended)->toContain('alice: hi there');
 
     $ui->stop();
     $listener->close();
@@ -148,6 +150,7 @@ it('lists the commands on /help', function () {
     delay(0.05);
 
     expect($ui->appended)->toContain('*** /help — show this list');
+    expect($ui->appended)->toContain('*** /login <username> — set the name peers see');
     expect($ui->appended)->toContain('*** /quit — close the client, like Esc');
     expect($ui->stopped)->toBeFalse();
     expect($sent->lines)->toBeEmpty();
@@ -156,63 +159,36 @@ it('lists the commands on /help', function () {
     $listener->close();
 });
 
-it('reports an unknown command locally', function () {
-    // A typo stays in the typist's own log rather than going out to the room.
+it('reports an unknown command locally and sends nothing', function (string $typed, string $named) {
+    // A typo stays in the typist's own log rather than going out to the room,
+    // whatever it is made of.
     [$ui, $peer, $listener] = connectFakeClient();
     $sent = new LineCollector($peer);
     delay(0.05);
 
-    $ui->submit('/qut');
+    $ui->submit($typed);
     delay(0.05);
 
-    expect($ui->appended)->toContain('*** unknown command: /qut');
+    expect($ui->appended)->toContain("*** unknown command: /$named");
     expect($ui->stopped)->toBeFalse();
     expect($sent->lines)->toBeEmpty();
 
     $ui->stop();
     $listener->close();
-});
+})->with([
+    'a typo' => ['/qut', 'qut'],
 
-it('truncates a long command name in the notice', function () {
     // Same 40-character cap Codec\Decoder puts on an unexpected type.
-    [$ui, , $listener] = connectFakeClient();
-    delay(0.05);
+    'a long name' => ['/' . str_repeat('x', 60), str_repeat('x', 40)],
 
-    $ui->submit('/' . str_repeat('x', 60));
-
-    expect($ui->appended)->toContain('*** unknown command: /' . str_repeat('x', 40));
-
-    $ui->stop();
-    $listener->close();
-});
-
-it('truncates a long multibyte command name in the notice', function () {
     // A byte-wise cut can slice a multibyte character in half, leaving an
     // incomplete UTF-8 sequence that Sanitizer::sanitize() cannot repair and
     // Ui::append() then renders as an empty line.
-    [$ui, , $listener] = connectFakeClient();
-    delay(0.05);
+    'a long multibyte name' => ['/' . str_repeat('あ', 50), str_repeat('あ', 40)],
 
-    $ui->submit('/' . str_repeat('あ', 50));
-
-    expect($ui->appended)->toContain('*** unknown command: /' . str_repeat('あ', 40));
-
-    $ui->stop();
-    $listener->close();
-});
-
-it('does not drop a command name that is the falsy string "0"', function () {
     // '0' is falsy in PHP, so a truthiness check would drop it from the notice.
-    [$ui, , $listener] = connectFakeClient();
-    delay(0.05);
-
-    $ui->submit('/0');
-
-    expect($ui->appended)->toContain('*** unknown command: /0');
-
-    $ui->stop();
-    $listener->close();
-});
+    'the falsy string "0"' => ['/0', '0'],
+]);
 
 it('sends a message whose slash is not leading as chat', function () {
     [$ui, $peer, $listener] = connectFakeClient();
@@ -223,6 +199,70 @@ it('sends a message whose slash is not leading as chat', function () {
     delay(0.05);
 
     expect(decodeFromClient($sent->lines))->toEqual([new Chat('why did you do /that?')]);
+
+    $ui->stop();
+    $listener->close();
+});
+
+it('sends a login and appends nothing of its own', function () {
+    // The server's notice is the only feedback. A local echo would mean two
+    // lines for one action, and the client cannot know whether it worked.
+    [$ui, $peer, $listener] = connectFakeClient();
+    $sent = new LineCollector($peer);
+    delay(0.05);
+
+    $before = count($ui->appended);
+
+    $ui->submit('/login alice');
+    delay(0.05);
+
+    expect(decodeFromClient($sent->lines))->toEqual([new Login('alice')]);
+    expect($ui->appended)->toHaveCount($before);
+
+    $ui->stop();
+    $listener->close();
+});
+
+it('sends the argument verbatim, leaving the rules to the server', function () {
+    // One rule, in one place, on the side that decides.
+    [$ui, $peer, $listener] = connectFakeClient();
+    $sent = new LineCollector($peer);
+    delay(0.05);
+
+    $ui->submit('/login José');
+    delay(0.05);
+
+    expect(decodeFromClient($sent->lines))->toEqual([new Login('José')]);
+
+    $ui->stop();
+    $listener->close();
+});
+
+it('reports the usage of /login with no argument', function () {
+    // The only case decided locally, because it has nothing to send.
+    [$ui, $peer, $listener] = connectFakeClient();
+    $sent = new LineCollector($peer);
+    delay(0.05);
+
+    $ui->submit('/login');
+    delay(0.05);
+
+    expect($ui->appended)->toContain('*** usage: /login <username>');
+    expect($sent->lines)->toBeEmpty();
+    expect($ui->stopped)->toBeFalse();
+
+    $ui->stop();
+    $listener->close();
+});
+
+it('appends a notice from the server', function () {
+    [$ui, $peer, $listener] = connectFakeClient();
+    delay(0.05);
+
+    $peer->write(wireLine(new Notice('you are now alice')));
+    delay(0.05);
+
+    expect($ui->appended)->toContain('*** you are now alice');
 
     $ui->stop();
     $listener->close();

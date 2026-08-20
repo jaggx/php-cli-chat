@@ -6,6 +6,8 @@ use Amp\ByteStream\WritableStream;
 use Amp\Socket;
 use PhpCliChat\Protocol\Message\Broadcast;
 use PhpCliChat\Protocol\Message\Chat;
+use PhpCliChat\Protocol\Message\Login;
+use PhpCliChat\Protocol\Message\Notice;
 use PhpCliChat\Protocol\Unreadable;
 
 use function Amp\async;
@@ -56,7 +58,7 @@ class ChatServer
         $this->log->write("Listening on {$server->getAddress()}" . PHP_EOL);
 
         while ($client = $server->accept()) {
-            $connection = $this->hub->add($client, $this->options->debug ? $this->log : null);
+            $connection = $this->hub->accept($client, $this->options->debug ? $this->log : null);
 
             $this->log->write("client $connection->id connected from {$connection->getRemoteAddress()}" . PHP_EOL);
 
@@ -66,8 +68,7 @@ class ChatServer
                 } catch (\Throwable $t) {
                     getStderr()->write("client $connection->id failed: {$t->getMessage()}" . PHP_EOL);
                 } finally {
-                    $this->hub->remove($connection->id);
-                    $connection->close();
+                    $this->hub->disconnect($connection->id);
                 }
             });
         }
@@ -78,8 +79,7 @@ class ChatServer
         $this->server?->close();
 
         foreach ($this->hub->all() as $connection) {
-            $this->hub->remove($connection->id);
-            $connection->close();
+            $this->hub->disconnect($connection->id);
         }
     }
 
@@ -91,26 +91,42 @@ class ChatServer
     private function handleConnection(Connection $connection): void
     {
         foreach ($connection->receive() as $message) {
-            if ($message instanceof Unreadable) {
-                getStderr()->write("client $connection->id sent a malformed message: $message->reason" . PHP_EOL);
-                continue;
-            }
-
-            // The server codec only ever produces Message\Chat today, so this cannot fire
-            // yet; it is what PHPStan needs to narrow, and the landing spot for the next
-            // client->server type.
-            if (!$message instanceof Chat) {
-                continue;
-            }
-
-            $text = trim($message->text);
-
-            if ('' === $text) {
-                continue;
-            }
-
-            $this->broadcast($connection, new Broadcast($connection->id, $text));
+            match (true) {
+                $message instanceof Unreadable => $this->logUnreadable($connection, $message),
+                $message instanceof Login => $this->login($connection, $message),
+                $message instanceof Chat => $this->chat($connection, $message),
+                default => null,
+            };
         }
+    }
+
+    private function logUnreadable(Connection $connection, Unreadable $message): void
+    {
+        getStderr()->write("client $connection->id sent a malformed message: $message->reason" . PHP_EOL);
+    }
+
+    private function chat(Connection $connection, Chat $message): void
+    {
+        $text = trim($message->text);
+
+        if ('' === $text) {
+            return;
+        }
+
+        $this->broadcast($connection, new Broadcast($this->hub->label($connection->id), $text));
+    }
+
+    private function login(Connection $connection, Login $message): void
+    {
+        try {
+            $this->hub->claim($connection->id, $message->name);
+        } catch (NameRefused $e) {
+            $connection->send(new Notice($e->getMessage()));
+
+            return;
+        }
+
+        $connection->send(new Notice("you are now {$this->hub->label($connection->id)}"));
     }
 
     private function broadcast(Connection $sender, Broadcast $message): void

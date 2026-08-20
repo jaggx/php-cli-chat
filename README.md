@@ -5,8 +5,9 @@ A simple terminal chat: an async TCP server and a TUI client, built on
 
 ```
  Connected to 127.0.0.1:1337. Type /help for commands.
+ *** you are now alice
  me: hey there
- client 1: hello back
+ bob: hello back
 
  ╭──────────────────────────────────────────────────────────╮
  │ >                                                        │
@@ -51,10 +52,11 @@ Type a message and press Enter. `Esc`, `Ctrl+C` or `/quit` quits the client.
 
 Anything you type that starts with `/` is a command rather than chat:
 
-| Command | What it does                                            |
-|---------|---------------------------------------------------------|
-| `/help` | Lists the commands, in your own log.                    |
-| `/quit` | Closes the client, exactly as `Esc` or `Ctrl + C` does. |
+| Command             | What it does                                            |
+|---------------------|---------------------------------------------------------|
+| `/help`             | Lists the commands, in your own log.                    |
+| `/login <username>` | Sets the name peers see. Once per connection.           |
+| `/quit`             | Closes the client, exactly as `Esc` or `Ctrl + C` does. |
 
 An unrecognized command is reported in your own log and sent to nobody
 
@@ -64,7 +66,9 @@ Client and server exchange one JSON object per line, UTF-8.
 
 ```
 c→s   {"type":"chat","text":"hello everyone"}
-s→c   {"type":"chat","from":0,"text":"hello everyone"}
+c→s   {"type":"login","name":"alice"}
+s→c   {"type":"chat","from":"alice","text":"hello everyone"}
+s→c   {"type":"notice","text":"you are now alice"}
 ```
 
 Anything else — invalid JSON, an unknown `type`, a missing or wrong-typed field — is dropped. The server logs it and the
@@ -80,21 +84,17 @@ composer stan    # PHPStan at --level=max over src/ and bin/
 ## Known limitations
 
 - `symfony/tui` is an experimental Symfony component with no backwards compatibility promise, hence the `~8.1.0` pin.
-- Peers are identified by connection id only — no nicknames.
-- No join or leave notices.
-- No authentication and no TLS. It binds to localhost unless you pass
-  `--host`
-- The JSON protocol is not compatible with v0.1.0's plain-text wire. Mixing an old client with a new server (or the
-  reverse) produces a connected-but-silent session; both ends must be from the same version.
-- A message whose first character is `/` cannot be sent: a leading slash always means a command, and there is no `//`
-  escape yet.
+- A name lasts as long as its connection and is not persisted. It cannot be changed without reconnecting.
+- A name is ASCII letters, digits and spaces only, at most 20 characters, so `José` and `さくら` are refused.
+- No authentication and no TLS. It binds to localhost unless you pass `--host`
 
 ## Planned features
 
-- Add support for nicknames
+- Authentication
 - Allow creations of rooms, and join them
 - Add persistence to chats
-- Add server commands — `/quit` is client-side; `/nick` and `/join` must reach the server
+- Add join and leave notices
+- Add server commands
 
 ## License
 

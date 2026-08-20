@@ -13,11 +13,11 @@ class Hub
     private array $connections = [];
     private int $nextID = 0;
 
-    /**
-     * @param ?WritableStream $debug passed on to the connection this builds,
-     *                               which is what owns the id it logs under
-     */
-    public function add(Socket\Socket $socket, ?WritableStream $debug = null): Connection
+    public function __construct(
+        private readonly Roster $roster = new Roster(),
+    ) {}
+
+    public function accept(Socket\Socket $socket, ?WritableStream $debug = null): Connection
     {
         $id = $this->nextID;
         $this->nextID = $id + 1;
@@ -25,9 +25,14 @@ class Hub
         return $this->connections[$id] = Connection::accept($socket, $id, $debug);
     }
 
-    public function remove(int $id): void
+    public function disconnect(int $id): void
     {
+        $connection = $this->connections[$id] ?? null;
+
         unset($this->connections[$id]);
+        $this->roster->release($id);
+
+        $connection?->close();
     }
 
     /**
@@ -36,5 +41,18 @@ class Hub
     public function all(): array
     {
         return $this->connections;
+    }
+
+    /**
+     * @throws NameRefused
+     */
+    public function claim(int $id, string $name): void
+    {
+        $this->roster->claim($id, $name);
+    }
+
+    public function label(int $id): string
+    {
+        return $this->roster->label($id);
     }
 }

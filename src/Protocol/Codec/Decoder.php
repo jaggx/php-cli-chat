@@ -13,14 +13,20 @@ readonly class Decoder
         private array $registry,
     ) {}
 
-    public static function forServer(): self
+    public static function toServer(): self
     {
-        return new self(['chat' => Message\Chat::class]);
+        return new self([
+            'chat' => Message\Chat::class,
+            'login' => Message\Login::class,
+        ]);
     }
 
-    public static function forClient(): self
+    public static function toClient(): self
     {
-        return new self(['chat' => Message\Broadcast::class]);
+        return new self([
+            'chat' => Message\Broadcast::class,
+            'notice' => Message\Notice::class,
+        ]);
     }
 
     /**

@@ -5,15 +5,15 @@ namespace PhpCliChat\Protocol\Message;
 use PhpCliChat\Protocol\Codec\MalformedMessage;
 use PhpCliChat\Protocol\Message;
 
-readonly class Chat implements Message
+readonly class Login implements Message
 {
     public function __construct(
-        public string $text,
+        public string $name,
     ) {}
 
     public function type(): string
     {
-        return 'chat';
+        return 'login';
     }
 
     /**
@@ -21,7 +21,7 @@ readonly class Chat implements Message
      */
     public function payload(): array
     {
-        return ['text' => $this->text];
+        return ['name' => $this->name];
     }
 
     /**
@@ -30,12 +30,12 @@ readonly class Chat implements Message
      */
     public static function fromPayload(array $payload): self
     {
-        $text = $payload['text'] ?? null;
+        $name = $payload['name'] ?? null;
 
-        if (!is_string($text)) {
-            throw new MalformedMessage('chat: "text" must be a string');
+        if (!is_string($name)) {
+            throw new MalformedMessage('login: "name" must be a string');
         }
 
-        return new self($text);
+        return new self($name);
     }
 }

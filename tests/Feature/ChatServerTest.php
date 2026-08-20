@@ -4,6 +4,8 @@ use Amp\ByteStream\WritableBuffer;
 use Amp\Socket;
 use PhpCliChat\Protocol\Message\Broadcast;
 use PhpCliChat\Protocol\Message\Chat;
+use PhpCliChat\Protocol\Message\Login;
+use PhpCliChat\Protocol\Message\Notice;
 use PhpCliChat\Server\Hub;
 
 use function Amp\delay;
@@ -12,9 +14,7 @@ it('does not send a message back to its sender', function () {
     [$server, $address] = startChatServer();
 
     [$alice, $aliceLines] = connectClient($address);
-    delay(0.05);
     connectClient($address);
-    delay(0.05);
 
     $alice->write(wireLine(new Chat('hello everyone')));
     delay(0.05);
@@ -30,9 +30,7 @@ it('ignores whitespace-only text', function () {
     [$server, $address] = startChatServer();
 
     [$alice] = connectClient($address);
-    delay(0.05);
     [, $bobLines] = connectClient($address);
-    delay(0.05);
 
     $alice->write(wireLine(new Chat('   ')));
     $alice->write(wireLine(new Chat('')));
@@ -47,17 +45,15 @@ it('relays in both directions', function () {
     [$server, $address] = startChatServer();
 
     [$alice, $aliceLines] = connectClient($address);
-    delay(0.05);
     [$bob, $bobLines] = connectClient($address);
-    delay(0.05);
 
     $alice->write(wireLine(new Chat('from alice')));
     delay(0.05);
     $bob->write(wireLine(new Chat('from bob')));
     delay(0.05);
 
-    expect(decodeFromServer($bobLines->lines))->toEqual([new Broadcast(0, 'from alice')]);
-    expect(decodeFromServer($aliceLines->lines))->toEqual([new Broadcast(1, 'from bob')]);
+    expect(decodeFromServer($bobLines->lines))->toEqual([new Broadcast('Anonymous', 'from alice')]);
+    expect(decodeFromServer($aliceLines->lines))->toEqual([new Broadcast('Anonymous', 'from bob')]);
 
     $server->stop();
 });
@@ -66,21 +62,19 @@ it('stamps the sender itself rather than trusting the wire', function () {
     [$server, $address] = startChatServer();
 
     [, $aliceLines] = connectClient($address);
-    delay(0.05);
     [$bob] = connectClient($address);
-    delay(0.05);
     [, $carolLines] = connectClient($address);
+
+    $bob->write(wireLine(new Login('bob')));
     delay(0.05);
 
-    // Bob claims to be Alice. The server knows which socket the bytes arrived
-    // on and ignores the claim.
-    $bob->write('{"type":"chat","from":0,"text":"not from alice"}' . "\n");
+    // Bob claims the label alice. The server knows which socket the bytes
+    // arrived on and stamps the name that socket holds.
+    $bob->write('{"type":"chat","from":"alice","text":"not from alice"}' . "\n");
     delay(0.05);
 
-    expect(decodeFromServer($carolLines->lines))->toEqual([new Broadcast(1, 'not from alice')]);
-    // The forged from:0 must not make the server skip alice (id 0) as a
-    // recipient by mistaking her for the sender.
-    expect(decodeFromServer($aliceLines->lines))->toEqual([new Broadcast(1, 'not from alice')]);
+    expect(decodeFromServer($carolLines->lines))->toEqual([new Broadcast('bob', 'not from alice')]);
+    expect(decodeFromServer($aliceLines->lines))->toEqual([new Broadcast('bob', 'not from alice')]);
 
     $server->stop();
 });
@@ -92,9 +86,7 @@ it('survives a client that sends garbage', function () {
     [$server, $address] = startChatServer();
 
     [$alice, $aliceLines] = connectClient($address);
-    delay(0.05);
     [, $bobLines] = connectClient($address);
-    delay(0.05);
 
     $alice->write("garbage\n");
     delay(0.05);
@@ -103,7 +95,7 @@ it('survives a client that sends garbage', function () {
     delay(0.05);
 
     expect($aliceLines->closed)->toBeFalse();
-    expect(decodeFromServer($bobLines->lines))->toEqual([new Broadcast(0, 'still here')]);
+    expect(decodeFromServer($bobLines->lines))->toEqual([new Broadcast('Anonymous', 'still here')]);
 
     $server->stop();
 });
@@ -113,7 +105,6 @@ it('forgets a client that disconnects', function () {
     [$server, $address] = startChatServer($hub);
 
     [$alice] = connectClient($address);
-    delay(0.05);
 
     expect($hub->all())->toHaveCount(1);
 
@@ -129,11 +120,8 @@ it('keeps serving the survivors after one client leaves', function () {
     [$server, $address] = startChatServer();
 
     [$alice] = connectClient($address);
-    delay(0.05);
     [$bob, $bobLines] = connectClient($address);
-    delay(0.05);
     [, $carolLines] = connectClient($address);
-    delay(0.05);
 
     $bob->close();
     delay(0.05);
@@ -141,7 +129,7 @@ it('keeps serving the survivors after one client leaves', function () {
     $alice->write(wireLine(new Chat('still here')));
     delay(0.05);
 
-    expect(decodeFromServer($carolLines->lines))->toEqual([new Broadcast(0, 'still here')]);
+    expect(decodeFromServer($carolLines->lines))->toEqual([new Broadcast('Anonymous', 'still here')]);
     expect($bobLines->lines)->toBeEmpty();
 
     $server->stop();
@@ -152,9 +140,7 @@ it('logs both directions of the traffic in debug mode', function () {
     [$server, $address] = startChatServer(debug: true, log: $log);
 
     [$alice] = connectClient($address);
-    delay(0.05);
     connectClient($address);
-    delay(0.05);
 
     $alice->write(wireLine(new Chat('hello everyone')));
     delay(0.05);
@@ -164,7 +150,7 @@ it('logs both directions of the traffic in debug mode', function () {
 
     expect(loggedTraffic($log))->toBe([
         'client 0 -> server {"type":"chat","text":"hello everyone"}',
-        'server -> client 1 {"type":"chat","from":0,"text":"hello everyone"}',
+        'server -> client 1 {"type":"chat","from":"Anonymous","text":"hello everyone"}',
     ]);
 });
 
@@ -173,9 +159,7 @@ it('logs no traffic unless it is in debug mode', function () {
     [$server, $address] = startChatServer(log: $log);
 
     [$alice] = connectClient($address);
-    delay(0.05);
     connectClient($address);
-    delay(0.05);
 
     $alice->write(wireLine(new Chat('hello everyone')));
     delay(0.05);
@@ -192,14 +176,12 @@ it('still relays what it logs', function () {
     [$server, $address] = startChatServer(debug: true);
 
     [, $aliceLines] = connectClient($address);
-    delay(0.05);
     [$bob] = connectClient($address);
-    delay(0.05);
 
     $bob->write(wireLine(new Chat('hello')));
     delay(0.05);
 
-    expect(decodeFromServer($aliceLines->lines))->toEqual([new Broadcast(1, 'hello')]);
+    expect(decodeFromServer($aliceLines->lines))->toEqual([new Broadcast('Anonymous', 'hello')]);
 
     $server->stop();
 });
@@ -208,9 +190,7 @@ it('closes every connection when it stops', function () {
     [$server, $address] = startChatServer();
 
     [, $aliceLines] = connectClient($address);
-    delay(0.05);
     [, $bobLines] = connectClient($address);
-    delay(0.05);
 
     $server->stop();
     delay(0.05);
@@ -224,9 +204,7 @@ it('empties the hub when it stops', function () {
     [$server, $address] = startChatServer($hub);
 
     connectClient($address);
-    delay(0.05);
     connectClient($address);
-    delay(0.05);
 
     expect($hub->all())->toHaveCount(2);
 
@@ -241,7 +219,6 @@ it('stops accepting new connections when it stops', function () {
     [$server, $address] = startChatServer();
 
     connectClient($address);
-    delay(0.05);
 
     $server->stop();
     delay(0.05);
@@ -258,7 +235,6 @@ it('can be stopped twice', function () {
     [$server, $address] = startChatServer();
 
     [, $aliceLines] = connectClient($address);
-    delay(0.05);
 
     # The second call finds a closed listener and an empty register. It has to
     # be a no-op rather than a throw: SIGINT then SIGTERM is an ordinary way to
@@ -268,4 +244,85 @@ it('can be stopped twice', function () {
     delay(0.05);
 
     expect($aliceLines->closed)->toBeTrue();
+});
+
+it('answers a login with a notice, and tells no peer', function () {
+    // Peers see the new label on the next thing she says. Announcing a join
+    // would read as an oversight while leaving is still silent.
+    [$server, $address] = startChatServer();
+
+    [$alice, $aliceLines] = connectClient($address);
+    [, $bobLines] = connectClient($address);
+
+    $alice->write(wireLine(new Login('alice')));
+    delay(0.05);
+
+    expect(decodeFromServer($aliceLines->lines))->toEqual([new Notice('you are now alice')]);
+    expect($bobLines->lines)->toBeEmpty();
+
+    $server->stop();
+});
+
+it('stamps a logged-in name on what she says next', function () {
+    [$server, $address] = startChatServer();
+
+    [$alice] = connectClient($address);
+    [, $bobLines] = connectClient($address);
+
+    $alice->write(wireLine(new Login('  John  Doe  ')));
+    delay(0.05);
+    $alice->write(wireLine(new Chat('hello')));
+    delay(0.05);
+
+    // The notice confirms the normalised name, which is also what displays.
+    expect(decodeFromServer($bobLines->lines))->toEqual([new Broadcast('John Doe', 'hello')]);
+
+    $server->stop();
+});
+
+it('refuses a name another connection holds', function () {
+    [$server, $address] = startChatServer();
+
+    [$alice, $aliceLines] = connectClient($address);
+    [$bob, $bobLines] = connectClient($address);
+
+    $alice->write(wireLine(new Login('alice')));
+    delay(0.05);
+    $bob->write(wireLine(new Login('ALICE')));
+    delay(0.05);
+    $bob->write(wireLine(new Chat('still anonymous')));
+    delay(0.05);
+
+    expect(decodeFromServer($bobLines->lines))->toEqual([new Notice('the name ALICE is taken')]);
+
+    // claim() throws before it writes, so a refused login leaves bob exactly
+    // as anonymous as he was. Alice's own notice is on her socket too.
+    expect(decodeFromServer($aliceLines->lines))->toEqual([
+        new Notice('you are now alice'),
+        new Broadcast('Anonymous', 'still anonymous'),
+    ]);
+
+    $server->stop();
+});
+
+it('frees a name when its connection closes', function () {
+    // release() runs in the same finally that removes the connection from the
+    // hub, so a name never outlives its socket.
+    [$server, $address] = startChatServer();
+
+    [$alice] = connectClient($address);
+    [$bob, $bobLines] = connectClient($address);
+
+    $alice->write(wireLine(new Login('alice')));
+    delay(0.05);
+
+    $alice->close();
+    delay(0.05);
+
+    $bob->write(wireLine(new Login('alice')));
+    delay(0.05);
+
+    expect(decodeFromServer($bobLines->lines))->toEqual([new Notice('you are now alice')]);
+
+    $server->stop();
 });
