@@ -8,11 +8,13 @@ use PhpCliChat\Server\ServerOptions;
 class OptionsFactory
 {
     private const string DEBUG = '--debug';
+    private const string CLIENT_ENV_FILE = '.client.env';
+    private const string SERVER_ENV_FILE = '.server.env';
 
     /**
      * @param array<int, string> $argv
      */
-    public static function client(array $argv): ClientOptions
+    public static function client(array $argv, ?string $envPath = null): ClientOptions
     {
         self::helpIfAsked(
             $argv,
@@ -21,25 +23,29 @@ class OptionsFactory
             self::usages(ClientOptions::HOST, ClientOptions::PORT),
         );
 
+        $env = self::env($envPath, self::CLIENT_ENV_FILE);
+
         return new ClientOptions(
-            self::option($argv, 'host', ClientOptions::HOST),
-            self::option($argv, 'port', ClientOptions::PORT),
+            self::option($argv, 'host', $env->get('HOST') ?? ClientOptions::HOST),
+            self::option($argv, 'port', $env->get('PORT') ?? ClientOptions::PORT),
         );
     }
 
     /**
      * @param array<int, string> $argv
      */
-    public static function server(array $argv): ServerOptions
+    public static function server(array $argv, ?string $envPath = null): ServerOptions
     {
         self::helpIfAsked($argv, 'server.php', 'Serve terminal chat over TCP.', [
             ...self::usages(ServerOptions::HOST, ServerOptions::PORT),
             self::DEBUG => 'Print every line exchanged with a client',
         ]);
 
+        $env = self::env($envPath, self::SERVER_ENV_FILE);
+
         return new ServerOptions(
-            self::option($argv, 'host', ServerOptions::HOST),
-            self::option($argv, 'port', ServerOptions::PORT),
+            self::option($argv, 'host', $env->get('HOST') ?? ServerOptions::HOST),
+            self::option($argv, 'port', $env->get('PORT') ?? ServerOptions::PORT),
             debug: in_array(self::DEBUG, $argv, true),
         );
     }
@@ -94,6 +100,11 @@ class OptionsFactory
         echo self::usage($script, $description, $options);
 
         exit(0);
+    }
+
+    private static function env(?string $path, string $file): EnvFile
+    {
+        return EnvFile::read($path ?? \dirname(__DIR__, 2) . '/' . $file);
     }
 
     /**

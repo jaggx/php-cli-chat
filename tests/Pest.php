@@ -100,6 +100,20 @@ function connectClient(string $address): array
     return [$socket, $collector];
 }
 
+function envFile(string $contents): string
+{
+    $path = tempnam(sys_get_temp_dir(), 'php-cli-chat-env-');
+
+    if (false === $path) {
+        throw new RuntimeException('could not create a temporary settings file');
+    }
+
+    file_put_contents($path, $contents);
+    register_shutdown_function(static fn () => @unlink($path));
+
+    return $path;
+}
+
 /**
  * Newline included.
  */

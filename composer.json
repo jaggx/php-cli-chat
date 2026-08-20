@@ -20,6 +20,7 @@
     "amphp/amp": "^3.1",
     "amphp/byte-stream": "^2.1",
     "amphp/socket": "^2.4",
+    "symfony/dotenv": "^8.1",
     "symfony/tui": "~8.1.0"
   },
   "require-dev": {

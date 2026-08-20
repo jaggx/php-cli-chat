@@ -3,6 +3,9 @@
 use PhpCliChat\Cli\OptionsFactory;
 use PhpCliChat\Client\ClientOptions;
 use PhpCliChat\Server\ServerOptions;
+use Symfony\Component\Dotenv\Exception\FormatException;
+
+const NO_ENV_FILE = '/does/not/exist/.server.env';
 
 /**
  * The two halves of the address, as the factory read them.
@@ -11,9 +14,9 @@ use PhpCliChat\Server\ServerOptions;
  *
  * @return array{string, string}
  */
-function hostAndPort(array $options): array
+function hostAndPort(array $options, string $envPath = NO_ENV_FILE): array
 {
-    $parsed = OptionsFactory::server(['bin/server.php', ...$options]);
+    $parsed = OptionsFactory::server(['bin/server.php', ...$options], $envPath);
 
     return [$parsed->host, $parsed->port];
 }
@@ -45,14 +48,14 @@ it('shrugs at anything it does not recognise', function (array $options, array $
 ]);
 
 it('reads the same two options for a client', function () {
-    $options = OptionsFactory::client(['bin/client.php', '--host=my-laptop', '--port=9000']);
+    $options = OptionsFactory::client(['bin/client.php', '--host=my-laptop', '--port=9000'], NO_ENV_FILE);
 
     expect([$options->host, $options->port])->toBe(['my-laptop', '9000']);
 });
 
 it('turns debug on only when the server is asked for it', function () {
-    expect(OptionsFactory::server(['bin/server.php'])->debug)->toBeFalse();
-    expect(OptionsFactory::server(['bin/server.php', '--debug'])->debug)->toBeTrue();
+    expect(OptionsFactory::server(['bin/server.php'], NO_ENV_FILE)->debug)->toBeFalse();
+    expect(OptionsFactory::server(['bin/server.php', '--debug'], NO_ENV_FILE)->debug)->toBeTrue();
     expect(hostAndPort(['--debug', '--port=9000']))->toBe(['127.0.0.1', '9000']);
 });
 
@@ -77,6 +80,45 @@ it('falls back to the defaults each options object declares', function () {
     // A command line that says nothing has to produce what the object itself
     // would: the factory reads the defaults off the class rather than keeping
     // a second copy, so --help and the fallback cannot drift apart.
-    expect(OptionsFactory::client(['bin/client.php']))->toEqual(new ClientOptions());
-    expect(OptionsFactory::server(['bin/server.php']))->toEqual(new ServerOptions());
+    expect(OptionsFactory::client(['bin/client.php'], NO_ENV_FILE))->toEqual(new ClientOptions());
+    expect(OptionsFactory::server(['bin/server.php'], NO_ENV_FILE))->toEqual(new ServerOptions());
+});
+
+it('reads a setting the command line is silent about from the env file', function () {
+    $env = envFile("HOST=0.0.0.0\nPORT=9000\n");
+
+    expect(hostAndPort([], $env))->toBe(['0.0.0.0', '9000']);
+});
+
+it('lets a command-line option beat the env file', function () {
+    $env = envFile("HOST=0.0.0.0\nPORT=9000\n");
+
+    expect(hostAndPort(['--port=1234'], $env))->toBe(['0.0.0.0', '1234']);
+});
+
+it('falls back to the class default for a key the env file omits', function () {
+    expect(hostAndPort([], envFile("PORT=9000\n")))->toBe(['127.0.0.1', '9000']);
+});
+
+it('reads a client setting the command line is silent about from the env file', function () {
+    $options = OptionsFactory::client(['bin/client.php'], envFile("HOST=my-laptop\nPORT=9000\n"));
+
+    expect([$options->host, $options->port])->toBe(['my-laptop', '9000']);
+});
+
+it('lets a command-line option beat the client env file', function () {
+    $options = OptionsFactory::client(['bin/client.php', '--host=other'], envFile("HOST=my-laptop\nPORT=9000\n"));
+
+    expect([$options->host, $options->port])->toBe(['other', '9000']);
+});
+
+it('falls back to the class default for a key the client env file omits', function () {
+    $options = OptionsFactory::client(['bin/client.php'], envFile("PORT=9000\n"));
+
+    expect([$options->host, $options->port])->toBe(['127.0.0.1', '9000']);
+});
+
+it('refuses a client env file it cannot parse', function () {
+    expect(fn () => OptionsFactory::client(['bin/client.php'], envFile("HOST\n")))
+        ->toThrow(FormatException::class);
 });

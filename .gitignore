@@ -4,3 +4,5 @@ vendor/
 .superpowers/
 docs/
 composer.lock
+.server.env
+.client.env
